@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>A Good Baby</title>
-  <meta name="color-scheme" content="light dark" />
   <style>
     :root { 
       --bg: #f9fafb; 
@@ -13,7 +12,6 @@
       --muted: #6b7280; 
       --line: #e5e7eb; 
       --brand: #059669;
-      --success: #10b981;
       --error: #ef4444;
     }
     * { box-sizing: border-box; }
@@ -35,7 +33,6 @@
     }
     h1 { margin: 0 0 8px; font-size: 28px; font-weight: 700; color: var(--brand); }
     h2 { margin: 0 0 16px; font-size: 20px; font-weight: 600; }
-    h3 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
     p { margin: 0 0 16px; color: var(--muted); }
     
     input, button { 
@@ -67,173 +64,32 @@
       cursor: not-allowed; 
     }
     
-    .btn-outline { 
-      background: white; 
-      color: var(--brand); 
-      border: 1px solid var(--brand); 
-    }
-    .btn-outline:hover { 
-      background: var(--brand); 
-      color: white; 
-    }
-    
-    .success { color: var(--success); font-weight: 500; }
     .error { color: var(--error); font-weight: 500; }
-    .muted { color: var(--muted); font-size: 14px; }
-    
     .hidden { display: none; }
     .text-center { text-align: center; }
-    
-    .invite-code { 
-      font-size: 24px; 
-      font-weight: 700; 
-      letter-spacing: 2px; 
-      text-align: center; 
-      background: #f3f4f6; 
-      padding: 16px; 
-      border-radius: 10px; 
-      margin: 16px 0;
-      border: 2px dashed var(--brand);
-    }
-    
-    .baby-card {
-      border: 2px solid var(--brand);
-      background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
-    }
-    
-    .caregiver-list {
-      background: #f9fafb;
-      border-radius: 8px;
-      padding: 12px;
-      margin: 12px 0;
-    }
-    .caregiver-item {
-      display: flex;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .caregiver-item:last-child { border-bottom: none; }
-    .caregiver-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: var(--brand);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      margin-right: 12px;
-    }
-    
-    .nav-tabs {
-      display: flex;
-      margin: 20px 0;
-      border-bottom: 1px solid var(--line);
-    }
-    .nav-tab {
-      flex: 1;
-      padding: 12px;
-      text-align: center;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      color: var(--muted);
-    }
-    .nav-tab.active {
-      color: var(--brand);
-      border-bottom-color: var(--brand);
-    }
-    
-    .feed-form {
-      display: grid;
-      gap: 16px;
-    }
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
   </style>
 
   <script type="module">
-    // Replace these with your actual Supabase credentials
-    const SUPABASE_URL = 'https://ibynalhexqhzxymtjkjt.supabase.co
-';
+    const SUPABASE_URL = 'https://ibynalhexqhzxymtjkjt.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlieW5hbGhleHFoenh5bXRqa2p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4MzE1MzQsImV4cCI6MjA3MjQwNzUzNH0.cslLWEPxUIlyO1nyZcFPwj6yA589Kuy-5HxqpEh0K3Y';
     
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
-    let currentUser = null;
-    let currentBabies = [];
-    let activeBaby = null;
-
-    // State management
-    function showView(viewId) {
-      document.querySelectorAll('[data-view]').forEach(el => {
-        el.classList.add('hidden');
-      });
-      document.querySelector(`[data-view="${viewId}"]`).classList.remove('hidden');
-    }
-
-    function showTab(tabId) {
-      document.querySelectorAll('.nav-tab').forEach(tab => {
-        tab.classList.remove('active');
-      });
-      document.querySelectorAll('[data-tab]').forEach(content => {
-        content.classList.add('hidden');
-      });
-      
-      document.querySelector(`[data-nav="${tabId}"]`).classList.add('active');
-      document.querySelector(`[data-tab="${tabId}"]`).classList.remove('hidden');
-    }
-
     function showStatus(message, type = 'success') {
       const status = document.getElementById('status');
       status.textContent = message;
       status.className = type;
-      setTimeout(() => status.textContent = '', 3000);
+      setTimeout(() => status.textContent = '', 5000);
     }
 
-    // Handle URL auth tokens
-    async function handleAuthCallback() {
-      const url = new URL(window.location.href);
-      
-      // Handle magic link hash tokens
-      if (location.hash.includes('access_token')) {
-        const hash = new URLSearchParams(location.hash.slice(1));
-        const access_token = hash.get('access_token');
-        const refresh_token = hash.get('refresh_token');
-        
-        if (access_token && refresh_token) {
-          try {
-            await supabase.auth.setSession({ access_token, refresh_token });
-            // Clean up URL
-            history.replaceState({}, '', url.pathname);
-          } catch (err) {
-            console.error('Error setting session:', err);
-          }
-        }
-      }
-      
-      // Handle OTP tokens
-      const token_hash = url.searchParams.get('token_hash');
-      const type = url.searchParams.get('type');
-      if (token_hash && type) {
-        try {
-          await supabase.auth.verifyOtp({ type, token_hash });
-          // Clean up URL
-          url.searchParams.delete('token_hash');
-          url.searchParams.delete('type');
-          history.replaceState({}, '', url.pathname);
-        } catch (err) {
-          console.error('Error verifying OTP:', err);
-        }
-      }
+    function showView(viewId) {
+      document.querySelectorAll('[data-view]').forEach(el => {
+        el.classList.add('hidden');
+      });
+      document.querySelector('[data-view="' + viewId + '"]').classList.remove('hidden');
     }
 
-    // Authentication
     async function sendMagicLink(e) {
       e.preventDefault();
       const email = document.getElementById('email').value.trim();
@@ -249,11 +105,13 @@
       
       try {
         const { error } = await supabase.auth.signInWithOtp({
-          email,
+          email: email,
           options: { emailRedirectTo: window.location.origin }
         });
         
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         
         showView('email-sent');
       } catch (err) {
@@ -264,259 +122,8 @@
       }
     }
 
-    async function signOut() {
-      await supabase.auth.signOut();
-    }
-
-    // Baby management
-    async function createBaby(e) {
-      e.preventDefault();
-      const name = document.getElementById('baby-name').value.trim();
-      const dob = document.getElementById('baby-dob').value;
-      const feedType = document.getElementById('feed-type').value;
-      const btn = e.target.querySelector('button');
-      
-      if (!name || !dob) {
-        showStatus('Please enter baby name and birth date', 'error');
-        return;
-      }
-      
-      btn.disabled = true;
-      btn.textContent = 'Creating...';
-      
-      try {
-        const { data, error } = await supabase
-          .from('babies')
-          .insert([{
-            name,
-            dob,
-            primary_feed_type: feedType,
-            created_by: currentUser.id
-          }])
-          .select();
-        
-        if (error) throw error;
-        
-        // Also add user as caregiver
-        await supabase
-          .from('baby_caregivers')
-          .insert([{
-            baby_id: data[0].id,
-            user_id: currentUser.id
-          }]);
-        
-        showStatus('Baby profile created successfully!');
-        e.target.reset();
-        await loadBabies();
-        
-      } catch (err) {
-        showStatus('Error: ' + err.message, 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Create Baby Profile';
-      }
-    }
-
-    async function joinBaby(e) {
-      e.preventDefault();
-      const inviteCode = document.getElementById('invite-code').value.trim().toUpperCase();
-      const btn = e.target.querySelector('button');
-      
-      if (!inviteCode) {
-        showStatus('Please enter an invite code', 'error');
-        return;
-      }
-      
-      btn.disabled = true;
-      btn.textContent = 'Joining...';
-      
-      try {
-        // Find baby with this invite code
-        const { data: babies, error: babyError } = await supabase
-          .from('babies')
-          .select('id, name')
-          .eq('invite_code', inviteCode);
-        
-        if (babyError) throw babyError;
-        if (!babies.length) {
-          throw new Error('Invalid invite code');
-        }
-        
-        // Add user as caregiver
-        const { error: caregiverError } = await supabase
-          .from('baby_caregivers')
-          .insert([{
-            baby_id: babies[0].id,
-            user_id: currentUser.id
-          }]);
-        
-        if (caregiverError) {
-          if (caregiverError.code === '23505') { // Already exists
-            throw new Error('You are already caring for this baby');
-          }
-          throw caregiverError;
-        }
-        
-        showStatus(`Successfully joined ${babies[0].name}'s care team!`);
-        e.target.reset();
-        await loadBabies();
-        
-      } catch (err) {
-        showStatus('Error: ' + err.message, 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Join Care Team';
-      }
-    }
-
-    async function loadBabies() {
-      try {
-        // Load babies user has access to
-        const { data, error } = await supabase
-          .from('babies')
-          .select(`
-            id, name, dob, primary_feed_type, invite_code, created_by,
-            baby_caregivers!inner(user_id)
-          `)
-          .eq('baby_caregivers.user_id', currentUser.id);
-        
-        if (error) throw error;
-        
-        currentBabies = data || [];
-        renderBabies();
-        
-        if (currentBabies.length > 0 && !activeBaby) {
-          selectBaby(currentBabies[0]);
-        }
-        
-      } catch (err) {
-        console.error('Error loading babies:', err);
-      }
-    }
-
-    function renderBabies() {
-      const container = document.getElementById('babies-list');
-      
-      if (currentBabies.length === 0) {
-        container.innerHTML = '<p class="muted text-center">No babies yet. Create one or join with an invite code.</p>';
-        return;
-      }
-      
-      container.innerHTML = currentBabies.map(baby => {
-        const age = calculateAge(baby.dob);
-        return `
-          <div class="card baby-card" onclick="selectBaby('${baby.id}')">
-            <h3>${baby.name}</h3>
-            <p class="muted">${age} old • ${baby.primary_feed_type} fed</p>
-            <div class="invite-code">${baby.invite_code}</div>
-            <p class="muted text-center">Share this code with family members</p>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function selectBaby(babyId) {
-      if (typeof babyId === 'string') {
-        activeBaby = currentBabies.find(b => b.id === babyId);
-      } else {
-        activeBaby = babyId;
-      }
-      
-      if (activeBaby) {
-        document.getElementById('active-baby-name').textContent = activeBaby.name;
-        loadCaregivers();
-        showView('baby-dashboard');
-        showTab('feed');
-      }
-    }
-
-    async function loadCaregivers() {
-      if (!activeBaby) return;
-      
-      try {
-        // Note: This query needs to be adjusted based on your actual RLS policies
-        // You might need to create a view or adjust the query
-        const { data, error } = await supabase
-          .from('baby_caregivers')
-          .select('user_id, joined_at')
-          .eq('baby_id', activeBaby.id);
-        
-        if (error) throw error;
-        
-        const container = document.getElementById('caregivers-list');
-        container.innerHTML = data.map(caregiver => `
-          <div class="caregiver-item">
-            <div class="caregiver-icon">
-              ${caregiver.user_id.substring(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <div>Caregiver ${caregiver.user_id.substring(0, 8)}...</div>
-              <div class="muted">Joined ${new Date(caregiver.joined_at).toLocaleDateString()}</div>
-            </div>
-          </div>
-        `).join('');
-        
-      } catch (err) {
-        console.error('Error loading caregivers:', err);
-        document.getElementById('caregivers-list').innerHTML = '<p class="muted">Unable to load care team</p>';
-      }
-    }
-
-    function calculateAge(dob) {
-      const today = new Date();
-      const birthDate = new Date(dob);
-      const diffTime = Math.abs(today - birthDate);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays < 7) return `${diffDays} days`;
-      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks`;
-      if (diffDays < 365) return `${Math.floor(diffDays / 30)} months`;
-      return `${Math.floor(diffDays / 365)} years`;
-    }
-
-    async function logFeed(e) {
-      e.preventDefault();
-      // This will be implemented in the next phase
-      showStatus('Feed logging coming in next update!');
-    }
-
-    // Initialize app
-    async function init() {
-      // Handle auth callback first
-      await handleAuthCallback();
-      
-      // Set default date to today
-      const today = new Date().toISOString().split('T')[0];
-      if (document.getElementById('baby-dob')) {
-        document.getElementById('baby-dob').value = today;
-      }
-      
-      // Auth state listener
-      supabase.auth.onAuthStateChange(async (event, session) => {
-        if (session?.user) {
-          currentUser = session.user;
-          const emailElements = document.querySelectorAll('#user-email');
-          emailElements.forEach(el => el.textContent = currentUser.email);
-          await loadBabies();
-          showView(currentBabies.length > 0 ? 'babies-list-view' : 'onboarding');
-        } else {
-          currentUser = null;
-          showView('sign-in');
-        }
-      });
-    }
-
-    // Global functions
+    // Make function globally available
     window.sendMagicLink = sendMagicLink;
-    window.signOut = signOut;
-    window.createBaby = createBaby;
-    window.joinBaby = joinBaby;
-    window.selectBaby = selectBaby;
-    window.showTab = showTab;
-    window.logFeed = logFeed;
-    window.showView = showView;
-
-    init();
   </script>
 </head>
 <body>
@@ -546,129 +153,8 @@
       <div class="card text-center">
         <h2>Check Your Email</h2>
         <p>We sent you a magic link. Click it to sign in instantly.</p>
-        <p class="muted">The link will open in this browser tab.</p>
-      </div>
-    </div>
-
-    <!-- Onboarding -->
-    <div data-view="onboarding" class="hidden">
-      <div class="card">
-        <h1>Welcome!</h1>
-        <p>Get started by creating a baby profile or joining an existing one.</p>
-        
-        <h3>Create Baby Profile</h3>
-        <form onsubmit="createBaby(event)">
-          <input 
-            id="baby-name" 
-            type="text" 
-            placeholder="Baby's name" 
-            required 
-          />
-          <input 
-            id="baby-dob" 
-            type="date" 
-            required 
-          />
-          <select id="feed-type">
-            <option value="breast">Breastfeeding</option>
-            <option value="formula">Formula feeding</option>
-            <option value="combo">Combination feeding</option>
-          </select>
-          <button type="submit">Create Baby Profile</button>
-        </form>
-        
-        <hr style="margin: 32px 0; border: 1px solid var(--line);">
-        
-        <h3>Join Care Team</h3>
-        <p class="muted">Have an invite code from another caregiver?</p>
-        <form onsubmit="joinBaby(event)">
-          <input 
-            id="invite-code" 
-            type="text" 
-            placeholder="Enter 6-digit code" 
-            maxlength="6" 
-            style="text-transform: uppercase;" 
-          />
-          <button type="submit" class="btn-outline">Join Care Team</button>
-        </form>
-        
-        <div style="text-align: center; margin-top: 20px;">
-          <button onclick="signOut()" class="btn-outline" style="width: auto; padding: 8px 16px;">
-            Sign Out (<span id="user-email"></span>)
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Babies List -->
-    <div data-view="babies-list-view" class="hidden">
-      <div class="card">
-        <h2>Your Babies</h2>
-        <div id="babies-list"></div>
-        
-        <button onclick="showView('onboarding')" class="btn-outline">
-          Add Another Baby
-        </button>
-        
-        <div style="text-align: center; margin-top: 20px;">
-          <button onclick="signOut()" class="btn-outline" style="width: auto; padding: 8px 16px;">
-            Sign Out (<span id="user-email"></span>)
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Baby Dashboard -->
-    <div data-view="baby-dashboard" class="hidden">
-      <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <h2 id="active-baby-name">Baby Name</h2>
-          <button onclick="showView('babies-list-view')" class="btn-outline" style="width: auto; padding: 8px 16px;">
-            Back to Babies
-          </button>
-        </div>
-        
-        <div class="nav-tabs">
-          <div class="nav-tab active" data-nav="feed" onclick="showTab('feed')">Feed</div>
-          <div class="nav-tab" data-nav="sleep" onclick="showTab('sleep')">Sleep</div>
-          <div class="nav-tab" data-nav="team" onclick="showTab('team')">Team</div>
-        </div>
-        
-        <!-- Feed Tab -->
-        <div data-tab="feed">
-          <h3>Log Feeding</h3>
-          <form class="feed-form" onsubmit="logFeed(event)">
-            <div class="form-row">
-              <select>
-                <option value="breast">Breast</option>
-                <option value="formula">Formula</option>
-                <option value="solids">Solids</option>
-              </select>
-              <input type="time" />
-            </div>
-            <input type="number" placeholder="Amount (oz)" step="0.1" />
-            <input type="text" placeholder="Notes (optional)" />
-            <button type="submit">Log Feed</button>
-          </form>
-          
-          <h3>Recent Feeds</h3>
-          <p class="muted">Feed history will appear here</p>
-        </div>
-        
-        <!-- Sleep Tab -->
-        <div data-tab="sleep" class="hidden">
-          <h3>Log Sleep</h3>
-          <p class="muted">Sleep tracking coming soon</p>
-        </div>
-        
-        <!-- Team Tab -->
-        <div data-tab="team" class="hidden">
-          <h3>Care Team</h3>
-          <div class="caregiver-list" id="caregivers-list">
-            Loading caregivers...
-          </div>
-          <p class="muted">Share the invite code with family members to add them to the care team.</p>
-        </div>
+        <p style="color: var(--muted); font-size: 14px;">Check your spam folder if you don't see it in a few minutes.</p>
+        <button onclick="location.reload()">Back to Sign In</button>
       </div>
     </div>
   </div>
