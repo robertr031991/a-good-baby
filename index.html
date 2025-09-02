@@ -76,6 +76,8 @@
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
+    let currentUser = null;
+    
     function showStatus(message, type = 'success') {
       const status = document.getElementById('status');
       status.textContent = message;
@@ -88,6 +90,66 @@
         el.classList.add('hidden');
       });
       document.querySelector('[data-view="' + viewId + '"]').classList.remove('hidden');
+    }
+
+    // Handle magic link callback
+    async function handleAuthCallback() {
+      console.log('Checking for auth tokens...');
+      
+      // Handle hash tokens (access_token in URL)
+      if (location.hash.includes('access_token')) {
+        console.log('Found hash tokens, processing...');
+        const hash = new URLSearchParams(location.hash.slice(1));
+        const access_token = hash.get('access_token');
+        const refresh_token = hash.get('refresh_token');
+        
+        if (access_token && refresh_token) {
+          try {
+            console.log('Setting session...');
+            const { data, error } = await supabase.auth.setSession({ 
+              access_token, 
+              refresh_token 
+            });
+            
+            if (error) throw error;
+            
+            console.log('Session set successfully:', data);
+            // Clean up URL
+            history.replaceState({}, '', location.pathname);
+            return true;
+          } catch (err) {
+            console.error('Error setting session:', err);
+          }
+        }
+      }
+      
+      // Handle query params (token_hash)
+      const url = new URL(window.location.href);
+      const token_hash = url.searchParams.get('token_hash');
+      const type = url.searchParams.get('type');
+      
+      if (token_hash && type) {
+        console.log('Found query tokens, verifying...');
+        try {
+          const { data, error } = await supabase.auth.verifyOtp({ 
+            type, 
+            token_hash 
+          });
+          
+          if (error) throw error;
+          
+          console.log('OTP verified successfully:', data);
+          // Clean up URL
+          url.searchParams.delete('token_hash');
+          url.searchParams.delete('type');
+          history.replaceState({}, '', url.pathname);
+          return true;
+        } catch (err) {
+          console.error('Error verifying OTP:', err);
+        }
+      }
+      
+      return false;
     }
 
     async function sendMagicLink(e) {
@@ -122,8 +184,46 @@
       }
     }
 
-    // Make function globally available
+    async function signOut() {
+      await supabase.auth.signOut();
+    }
+
+    // Initialize app
+    async function init() {
+      console.log('Initializing app...');
+      
+      // First handle any auth callback
+      const hadCallback = await handleAuthCallback();
+      
+      // Set up auth state listener
+      supabase.auth.onAuthStateChange((event, session) => {
+        console.log('Auth state changed:', event, session ? 'signed in' : 'signed out');
+        
+        if (session && session.user) {
+          currentUser = session.user;
+          document.getElementById('user-email').textContent = currentUser.email;
+          showView('signed-in');
+        } else {
+          currentUser = null;
+          showView('sign-in');
+        }
+      });
+      
+      // Check current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log('Found existing session');
+      } else {
+        console.log('No existing session');
+      }
+    }
+
+    // Make functions globally available
     window.sendMagicLink = sendMagicLink;
+    window.signOut = signOut;
+    
+    // Start the app
+    init();
   </script>
 </head>
 <body>
@@ -155,6 +255,23 @@
         <p>We sent you a magic link. Click it to sign in instantly.</p>
         <p style="color: var(--muted); font-size: 14px;">Check your spam folder if you don't see it in a few minutes.</p>
         <button onclick="location.reload()">Back to Sign In</button>
+      </div>
+    </div>
+
+    <!-- Signed In Success -->
+    <div data-view="signed-in" class="hidden">
+      <div class="card text-center">
+        <h1>Welcome!</h1>
+        <p>You are now signed in as:</p>
+        <h2 id="user-email" style="color: var(--brand);">user@example.com</h2>
+        
+        <p style="color: var(--muted); margin-top: 32px;">
+          🎉 Authentication is working! This proves your Supabase setup is correct.
+          <br><br>
+          Next step: We'll build the baby profile creation and sharing features.
+        </p>
+        
+        <button onclick="signOut()" style="margin-top: 20px;">Sign Out</button>
       </div>
     </div>
   </div>
