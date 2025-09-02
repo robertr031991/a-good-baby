@@ -157,46 +157,12 @@
   </style>
 
   <script type="module">
-    // Replace with your new Supabase credentials
-    const SUPABASE_URL = 'https://ibynalhexqhzxymtjkjt.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlieW5hbGhleHFoenh5bXRqa2p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4MzE1MzQsImV4cCI6MjA3MjQwNzUzNH0.cslLWEPxUIlyO1nyZcFPwj6yA589Kuy-5HxqpEh0K3Y';
+    // Replace these with your actual Supabase credentials
+    const SUPABASE_URL = 'YOUR_NEW_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_NEW_SUPABASE_ANON_KEY';
     
-    // Uncomment when you have real credentials
-    /*
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    */
-    
-    // Mock supabase for demo purposes
-    const supabase = {
-      auth: {
-        signInWithOtp: async ({ email }) => {
-          console.log('Mock: Sending magic link to', email);
-          return { data: {}, error: null };
-        },
-        onAuthStateChange: (callback) => {
-          // Mock signed in user after 2 seconds
-          setTimeout(() => {
-            callback('SIGNED_IN', { 
-              user: { id: 'user-123', email: 'demo@example.com' } 
-            });
-          }, 2000);
-          return { data: { subscription: { unsubscribe: () => {} } } };
-        },
-        signOut: async () => {
-          location.reload();
-        }
-      },
-      from: (table) => ({
-        select: () => ({
-          eq: () => ({ data: [], error: null })
-        }),
-        insert: (data) => {
-          console.log('Mock insert:', table, data);
-          return { data: data.map(item => ({ ...item, id: 'mock-id-' + Date.now() })), error: null };
-        }
-      })
-    };
     
     let currentUser = null;
     let currentBabies = [];
@@ -227,6 +193,43 @@
       status.textContent = message;
       status.className = type;
       setTimeout(() => status.textContent = '', 3000);
+    }
+
+    // Handle URL auth tokens
+    async function handleAuthCallback() {
+      const url = new URL(window.location.href);
+      
+      // Handle magic link hash tokens
+      if (location.hash.includes('access_token')) {
+        const hash = new URLSearchParams(location.hash.slice(1));
+        const access_token = hash.get('access_token');
+        const refresh_token = hash.get('refresh_token');
+        
+        if (access_token && refresh_token) {
+          try {
+            await supabase.auth.setSession({ access_token, refresh_token });
+            // Clean up URL
+            history.replaceState({}, '', url.pathname);
+          } catch (err) {
+            console.error('Error setting session:', err);
+          }
+        }
+      }
+      
+      // Handle OTP tokens
+      const token_hash = url.searchParams.get('token_hash');
+      const type = url.searchParams.get('type');
+      if (token_hash && type) {
+        try {
+          await supabase.auth.verifyOtp({ type, token_hash });
+          // Clean up URL
+          url.searchParams.delete('token_hash');
+          url.searchParams.delete('type');
+          history.replaceState({}, '', url.pathname);
+        } catch (err) {
+          console.error('Error verifying OTP:', err);
+        }
+      }
     }
 
     // Authentication
@@ -288,7 +291,8 @@
             dob,
             primary_feed_type: feedType,
             created_by: currentUser.id
-          }]);
+          }])
+          .select();
         
         if (error) throw error;
         
@@ -429,13 +433,11 @@
       if (!activeBaby) return;
       
       try {
+        // Note: This query needs to be adjusted based on your actual RLS policies
+        // You might need to create a view or adjust the query
         const { data, error } = await supabase
           .from('baby_caregivers')
-          .select(`
-            user_id,
-            joined_at,
-            auth.users(email)
-          `)
+          .select('user_id, joined_at')
           .eq('baby_id', activeBaby.id);
         
         if (error) throw error;
@@ -444,10 +446,10 @@
         container.innerHTML = data.map(caregiver => `
           <div class="caregiver-item">
             <div class="caregiver-icon">
-              ${caregiver.auth.users.email.charAt(0).toUpperCase()}
+              ${caregiver.user_id.substring(0, 2).toUpperCase()}
             </div>
             <div>
-              <div>${caregiver.auth.users.email}</div>
+              <div>Caregiver ${caregiver.user_id.substring(0, 8)}...</div>
               <div class="muted">Joined ${new Date(caregiver.joined_at).toLocaleDateString()}</div>
             </div>
           </div>
@@ -455,6 +457,7 @@
         
       } catch (err) {
         console.error('Error loading caregivers:', err);
+        document.getElementById('caregivers-list').innerHTML = '<p class="muted">Unable to load care team</p>';
       }
     }
 
@@ -478,14 +481,21 @@
 
     // Initialize app
     async function init() {
+      // Handle auth callback first
+      await handleAuthCallback();
+      
       // Set default date to today
-      document.getElementById('baby-dob').value = new Date().toISOString().split('T')[0];
+      const today = new Date().toISOString().split('T')[0];
+      if (document.getElementById('baby-dob')) {
+        document.getElementById('baby-dob').value = today;
+      }
       
       // Auth state listener
       supabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
           currentUser = session.user;
-          document.getElementById('user-email').textContent = currentUser.email;
+          const emailElements = document.querySelectorAll('#user-email');
+          emailElements.forEach(el => el.textContent = currentUser.email);
           await loadBabies();
           showView(currentBabies.length > 0 ? 'babies-list-view' : 'onboarding');
         } else {
@@ -503,6 +513,7 @@
     window.selectBaby = selectBaby;
     window.showTab = showTab;
     window.logFeed = logFeed;
+    window.showView = showView;
 
     init();
   </script>
