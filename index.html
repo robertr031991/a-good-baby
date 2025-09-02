@@ -188,6 +188,204 @@
       await supabase.auth.signOut();
     }
 
+    function showBabyStatus(message, type = 'success') {
+      const status = document.getElementById('baby-status');
+      status.textContent = message;
+      status.className = type;
+      setTimeout(() => status.textContent = '', 5000);
+    }
+
+    function showJoinStatus(message, type = 'success') {
+      const status = document.getElementById('join-status');
+      status.textContent = message;
+      status.className = type;
+      setTimeout(() => status.textContent = '', 5000);
+    }
+
+    async function createBaby(e) {
+      e.preventDefault();
+      const name = document.getElementById('baby-name').value.trim();
+      const dob = document.getElementById('baby-dob').value;
+      const feedType = document.getElementById('feed-type').value;
+      const btn = e.target.querySelector('button');
+      
+      if (!name || !dob) {
+        showBabyStatus('Please enter baby name and birth date', 'error');
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+      
+      try {
+        console.log('Creating baby:', { name, dob, feedType });
+        
+        // Create baby profile
+        const { data: babyData, error: babyError } = await supabase
+          .from('babies')
+          .insert([{
+            name: name,
+            dob: dob,
+            primary_feed_type: feedType,
+            created_by: currentUser.id
+          }])
+          .select();
+        
+        if (babyError) {
+          console.error('Baby creation error:', babyError);
+          throw babyError;
+        }
+        
+        console.log('Baby created:', babyData);
+        
+        // Add user as caregiver
+        const { error: caregiverError } = await supabase
+          .from('baby_caregivers')
+          .insert([{
+            baby_id: babyData[0].id,
+            user_id: currentUser.id
+          }]);
+        
+        if (caregiverError) {
+          console.error('Caregiver addition error:', caregiverError);
+          // Don't throw here, baby was created successfully
+        }
+        
+        showBabyStatus('Baby profile created successfully!');
+        e.target.reset();
+        
+        // Show the baby dashboard
+        displayBaby(babyData[0]);
+        
+      } catch (err) {
+        console.error('Error creating baby:', err);
+        showBabyStatus('Error: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Baby Profile';
+      }
+    }
+
+    async function joinBaby(e) {
+      e.preventDefault();
+      const inviteCode = document.getElementById('invite-code').value.trim().toUpperCase();
+      const btn = e.target.querySelector('button');
+      
+      if (!inviteCode) {
+        showJoinStatus('Please enter an invite code', 'error');
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = 'Joining...';
+      
+      try {
+        console.log('Looking for baby with invite code:', inviteCode);
+        
+        // Find baby with this invite code
+        const { data: babies, error: babyError } = await supabase
+          .from('babies')
+          .select('id, name, dob, primary_feed_type, invite_code')
+          .eq('invite_code', inviteCode);
+        
+        if (babyError) {
+          console.error('Baby search error:', babyError);
+          throw babyError;
+        }
+        
+        if (!babies || babies.length === 0) {
+          throw new Error('Invalid invite code');
+        }
+        
+        console.log('Found baby:', babies[0]);
+        
+        // Add user as caregiver
+        const { error: caregiverError } = await supabase
+          .from('baby_caregivers')
+          .insert([{
+            baby_id: babies[0].id,
+            user_id: currentUser.id
+          }]);
+        
+        if (caregiverError) {
+          if (caregiverError.code === '23505') {
+            throw new Error('You are already caring for this baby');
+          }
+          console.error('Caregiver addition error:', caregiverError);
+          throw caregiverError;
+        }
+        
+        showJoinStatus('Successfully joined ' + babies[0].name + "'s care team!");
+        e.target.reset();
+        
+        // Show the baby dashboard
+        displayBaby(babies[0]);
+        
+      } catch (err) {
+        console.error('Error joining baby:', err);
+        showJoinStatus('Error: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Join Care Team';
+      }
+    }
+
+    function calculateAge(dob) {
+      const today = new Date();
+      const birthDate = new Date(dob);
+      const diffTime = Math.abs(today - birthDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 7) return diffDays + ' days';
+      if (diffDays < 30) return Math.floor(diffDays / 7) + ' weeks';
+      if (diffDays < 365) return Math.floor(diffDays / 30) + ' months';
+      return Math.floor(diffDays / 365) + ' years';
+    }
+
+    function displayBaby(baby) {
+      document.getElementById('active-baby-name').textContent = baby.name;
+      document.getElementById('baby-info').textContent = calculateAge(baby.dob) + ' old • ' + baby.primary_feed_type + ' fed';
+      document.getElementById('baby-invite-code').textContent = baby.invite_code;
+      
+      loadCaregivers(baby.id);
+      showView('baby-dashboard');
+    }
+
+    async function loadCaregivers(babyId) {
+      try {
+        const { data, error } = await supabase
+          .from('baby_caregivers')
+          .select('user_id, joined_at')
+          .eq('baby_id', babyId);
+        
+        if (error) {
+          console.error('Error loading caregivers:', error);
+          document.getElementById('caregivers-list').innerHTML = 'Unable to load care team';
+          return;
+        }
+        
+        const caregiversHtml = data.map(caregiver => {
+          const userIdShort = caregiver.user_id.substring(0, 8);
+          const joinDate = new Date(caregiver.joined_at).toLocaleDateString();
+          return '<div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">' +
+                 '<div style="width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; margin-right: 12px;">' +
+                 userIdShort.substring(0, 2).toUpperCase() +
+                 '</div>' +
+                 '<div>' +
+                 '<div>Caregiver ' + userIdShort + '...</div>' +
+                 '<div style="color: var(--muted); font-size: 14px;">Joined ' + joinDate + '</div>' +
+                 '</div>' +
+                 '</div>';
+        }).join('');
+        
+        document.getElementById('caregivers-list').innerHTML = caregiversHtml || 'No caregivers found';
+        
+      } catch (err) {
+        console.error('Exception loading caregivers:', err);
+        document.getElementById('caregivers-list').innerHTML = 'Unable to load care team';
+      }
+    }
+
     // Initialize app
     async function init() {
       console.log('Initializing app...');
@@ -221,6 +419,9 @@
     // Make functions globally available
     window.sendMagicLink = sendMagicLink;
     window.signOut = signOut;
+    window.createBaby = createBaby;
+    window.joinBaby = joinBaby;
+    window.showView = showView;
     
     // Start the app
     init();
@@ -260,18 +461,83 @@
 
     <!-- Signed In Success -->
     <div data-view="signed-in" class="hidden">
-      <div class="card text-center">
-        <h1>Welcome!</h1>
-        <p>You are now signed in as:</p>
-        <h2 id="user-email" style="color: var(--brand);">user@example.com</h2>
+      <div class="card">
+        <h2>Create Baby Profile</h2>
+        <p style="color: var(--muted);">Signed in as: <span id="user-email">user@example.com</span></p>
         
-        <p style="color: var(--muted); margin-top: 32px;">
-          🎉 Authentication is working! This proves your Supabase setup is correct.
-          <br><br>
-          Next step: We'll build the baby profile creation and sharing features.
-        </p>
+        <form onsubmit="createBaby(event)">
+          <input 
+            id="baby-name" 
+            type="text" 
+            placeholder="Baby's name" 
+            required 
+          />
+          <input 
+            id="baby-dob" 
+            type="date" 
+            required 
+          />
+          <select id="feed-type">
+            <option value="breast">Breastfeeding</option>
+            <option value="formula">Formula feeding</option>
+            <option value="combo">Combination feeding</option>
+          </select>
+          <button type="submit">Create Baby Profile</button>
+        </form>
         
-        <button onclick="signOut()" style="margin-top: 20px;">Sign Out</button>
+        <div id="baby-status"></div>
+        
+        <hr style="margin: 32px 0; border: 1px solid var(--line);">
+        
+        <h2>Join Existing Baby</h2>
+        <p style="color: var(--muted);">Have an invite code from another caregiver?</p>
+        <form onsubmit="joinBaby(event)">
+          <input 
+            id="invite-code" 
+            type="text" 
+            placeholder="Enter 6-digit code" 
+            maxlength="6" 
+            style="text-transform: uppercase;" 
+          />
+          <button type="submit">Join Care Team</button>
+        </form>
+        
+        <div id="join-status"></div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+          <button onclick="signOut()">Sign Out</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Baby Dashboard -->
+    <div data-view="baby-dashboard" class="hidden">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h2 id="active-baby-name">Baby Name</h2>
+            <p style="color: var(--muted); margin: 0;" id="baby-info">Details</p>
+          </div>
+          <button onclick="showView('signed-in')" style="width: auto; padding: 8px 16px;">
+            Add Baby
+          </button>
+        </div>
+        
+        <div style="background: #f3f4f6; padding: 16px; border-radius: 10px; text-align: center; margin: 16px 0; border: 2px dashed var(--brand);">
+          <div style="font-size: 24px; font-weight: 700; letter-spacing: 2px;" id="baby-invite-code">
+            ABC123
+          </div>
+          <p style="color: var(--muted); margin: 8px 0 0;">Share this code with family members</p>
+        </div>
+        
+        <h3>Care Team</h3>
+        <div id="caregivers-list" style="background: #f9fafb; border-radius: 8px; padding: 12px; margin: 12px 0;">
+          Loading caregivers...
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+          <button onclick="signOut()">Sign Out</button>
+        </div>
       </div>
     </div>
   </div>
