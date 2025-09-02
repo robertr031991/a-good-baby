@@ -282,22 +282,36 @@
       try {
         console.log('Looking for baby with invite code:', inviteCode);
         
-        // Find baby with this invite code
+        // Find baby with this invite code (case insensitive)
         const { data: babies, error: babyError } = await supabase
           .from('babies')
           .select('id, name, dob, primary_feed_type, invite_code')
-          .eq('invite_code', inviteCode);
+          .ilike('invite_code', inviteCode);
         
         if (babyError) {
           console.error('Baby search error:', babyError);
           throw babyError;
         }
         
+        console.log('Search results:', babies);
+        
         if (!babies || babies.length === 0) {
           throw new Error('Invalid invite code');
         }
         
         console.log('Found baby:', babies[0]);
+        
+        // Check if user is already a caregiver
+        const { data: existingCaregiver } = await supabase
+          .from('baby_caregivers')
+          .select('user_id')
+          .eq('baby_id', babies[0].id)
+          .eq('user_id', currentUser.id)
+          .single();
+        
+        if (existingCaregiver) {
+          throw new Error('You are already caring for this baby');
+        }
         
         // Add user as caregiver
         const { error: caregiverError } = await supabase
@@ -308,9 +322,6 @@
           }]);
         
         if (caregiverError) {
-          if (caregiverError.code === '23505') {
-            throw new Error('You are already caring for this baby');
-          }
           console.error('Caregiver addition error:', caregiverError);
           throw caregiverError;
         }
@@ -394,13 +405,16 @@
       const hadCallback = await handleAuthCallback();
       
       // Set up auth state listener
-      supabase.auth.onAuthStateChange((event, session) => {
+      supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('Auth state changed:', event, session ? 'signed in' : 'signed out');
         
         if (session && session.user) {
           currentUser = session.user;
           document.getElementById('user-email').textContent = currentUser.email;
-          showView('signed-in');
+          
+          // Load any existing babies for this user
+          await loadExistingBabies();
+          
         } else {
           currentUser = null;
           showView('sign-in');
@@ -413,6 +427,53 @@
         console.log('Found existing session');
       } else {
         console.log('No existing session');
+      }
+    }
+
+    async function loadExistingBabies() {
+      try {
+        console.log('Loading existing babies for user:', currentUser.id);
+        
+        // Get babies where user is a caregiver
+        const { data: caregiverRecords, error: caregiverError } = await supabase
+          .from('baby_caregivers')
+          .select('baby_id')
+          .eq('user_id', currentUser.id);
+        
+        if (caregiverError) {
+          console.error('Error loading caregiver records:', caregiverError);
+          showView('signed-in');
+          return;
+        }
+        
+        console.log('Caregiver records:', caregiverRecords);
+        
+        if (!caregiverRecords || caregiverRecords.length === 0) {
+          // No babies found, show create form
+          showView('signed-in');
+          return;
+        }
+        
+        // Get the first baby's details
+        const babyId = caregiverRecords[0].baby_id;
+        const { data: babyData, error: babyError } = await supabase
+          .from('babies')
+          .select('*')
+          .eq('id', babyId)
+          .single();
+        
+        if (babyError) {
+          console.error('Error loading baby data:', babyError);
+          showView('signed-in');
+          return;
+        }
+        
+        console.log('Loaded baby:', babyData);
+        displayBaby(babyData);
+        
+      } catch (err) {
+        console.error('Exception loading existing babies:', err);
+        showView('signed-in');
       }
     }
 
