@@ -286,7 +286,7 @@
         const { data: babies, error: babyError } = await supabase
           .from('babies')
           .select('id, name, dob, primary_feed_type, invite_code')
-          .ilike('invite_code', inviteCode);
+          .eq('invite_code', inviteCode);
         
         if (babyError) {
           console.error('Baby search error:', babyError);
