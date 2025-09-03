@@ -282,10 +282,10 @@
       try {
         console.log('Looking for baby with invite code:', inviteCode);
         
-        // Find baby with this invite code (case insensitive)
+        // Find baby with this invite code (exact match)
         const { data: babies, error: babyError } = await supabase
           .from('babies')
-          .select('id, name, dob, primary_feed_type, invite_code')
+          .select('*')
           .eq('invite_code', inviteCode);
         
         if (babyError) {
